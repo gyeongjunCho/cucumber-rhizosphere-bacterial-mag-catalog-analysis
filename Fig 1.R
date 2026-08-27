@@ -353,8 +353,8 @@ p1b <- add_box(
   ymax = 6.9,
   label = paste0(
     "Rhizosphere recovery\n",
-    "~15 roots × 2 batches | 500 mL PBS per batch\n",
-    "20 min sonication in an ice-water bath\n",
+    "14 perimeter plants excluded | 8 roots × 2 batches\n",
+    "500 mL PBS per batch | 20 min sonication in an ice-water bath\n",
     "Batches combined → centrifugation at 3,000 × g for 20 min"
   )
 )
@@ -473,3 +473,4 @@ ggsave(
   units = "in",
   device = cairo_pdf
 )
+
