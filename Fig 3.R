@@ -566,7 +566,7 @@ fig3_bottom <- ggarrange(
   p3c,
   ncol = 2,
   widths = c(1.2, 1),
-  labels = c("B", "C"),
+  labels = c("b", "c"),
   font.label = list(
     size = 13,
     face = "bold"
@@ -578,7 +578,7 @@ fig3 <- ggarrange(
   fig3_bottom,
   ncol = 1,
   heights = c(1.3, 1),
-  labels = c("A", ""),
+  labels = c("a", ""),
   font.label = list(
     size = 13,
     face = "bold"

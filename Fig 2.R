@@ -192,7 +192,7 @@ fig2 <- ggarrange(
   p2c, p2d,
   ncol = 2,
   nrow = 2,
-  labels = c("A", "B", "C", "D"),
+  labels = c("a", "b", "c", "d"),
   font.label = list(
     size = 13,
     face = "bold"

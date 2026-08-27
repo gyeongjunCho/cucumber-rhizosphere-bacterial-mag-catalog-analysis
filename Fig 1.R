@@ -438,7 +438,7 @@ fig1_left <- ggarrange(
   ncol = 1,
   nrow = 2,
   heights = c(1,1.2),
-  labels = c(NA, "B"),
+  labels = c(NA, "b"),
   font.label = list(
     size = 14,
     face = "bold"
@@ -450,7 +450,7 @@ fig1 <- ggarrange(
   p1c,
   ncol = 2,
   widths = c(1, 1.5),
-  labels = c("A", "C"),
+  labels = c("a", "c"),
   font.label = list(
     size = 14,
     face = "bold"
