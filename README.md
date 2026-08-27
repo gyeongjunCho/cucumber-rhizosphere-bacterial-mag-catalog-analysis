@@ -35,6 +35,7 @@ cucumber-rhizosphere-mag-catalog-analysis/
 ├── Fig 3.R
 ├── Fig 4.R
 ├── Table 1.R
+├── Table 2.R
 └── fig1_asset/
     └── Fig1C_workflow.png
 ```
@@ -45,7 +46,8 @@ The scripts correspond directly to the figures and table in the associated Data 
 - `Fig 2.R` — HiFi sequencing yield, assembly characteristics, primary MAG recovery, and MAG-associated HiFi bases;
 - `Fig 3.R` — MAG completeness and contamination, contiguity, and MIMAG high-quality criteria;
 - `Fig 4.R` — catalogue subset relationships and ANI95 cluster structure, occupancy, and sharing among samples;
-- `Table 1.R` — sample and source-soil metadata table.
+- `Table 1.R` — sample and source-soil metadata table;
+- `Table 2.R` — Data files deposited in Zenodo for the bacterial MAG catalogue.
 
 `fig1_asset/` contains the workflow schematic used in Figure 1C. The `figure_and_table/` directory is used for generated outputs.
 
