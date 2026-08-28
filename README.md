@@ -23,8 +23,6 @@ The Zenodo deposition includes:
 - metadata for the 4,032 ANI95 representative MAGs; and
 - the ANI95 representative MAG FASTA archive.
 
-Large genome FASTA archives and catalogue data are hosted in Zenodo rather than duplicated in this code repository.
-
 ## Repository structure
 
 ```text
