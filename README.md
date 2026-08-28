@@ -1,6 +1,6 @@
-# Cucumber Rhizosphere MAG Catalog Analysis
+# Cucumber Rhizosphere Bacterial MAG Catalogue Analysis
 
-This repository contains the R scripts used to reproduce the figures and table presented in the associated *Scientific Data* Data Descriptor describing a genome-resolved metagenomic catalogue from cucumber rhizospheres amended with coastal plant-habitat soils.
+This repository contains the R scripts used to reproduce Figures 1–4 and Tables 1–2 presented in the associated *Scientific Data* Data Descriptor describing a genome-resolved bacterial metagenomic catalogue from cucumber rhizospheres amended with coastal plant-habitat soils.
 
 Genome reconstruction, MAG recovery, genome-quality assessment, taxonomic classification, and ANI95 clustering were performed using publicly available bioinformatics software as described in the manuscript. The resulting primary MAG catalogue and derived data products are deposited in Zenodo and are not duplicated in this repository.
 
@@ -28,7 +28,7 @@ Large genome FASTA archives and catalogue data are hosted in Zenodo rather than 
 ## Repository structure
 
 ```text
-cucumber-rhizosphere-mag-catalog-analysis/
+cucumber-rhizosphere-bacterial-mag-catalog-analysis/
 ├── README.md
 ├── Fig 1.R
 ├── Fig 2.R
@@ -40,14 +40,14 @@ cucumber-rhizosphere-mag-catalog-analysis/
     └── Fig1C_workflow.png
 ```
 
-The scripts correspond directly to the figures and table in the associated Data Descriptor:
+The scripts correspond directly to Figures 1–4 and Tables 1–2 in the associated Data Descriptor:
 
 - `Fig 1.R` — coastal source-soil sampling sites, experimental design, and genome-resolved metagenomic workflow;
 - `Fig 2.R` — HiFi sequencing yield, assembly characteristics, primary MAG recovery, and MAG-associated HiFi bases;
 - `Fig 3.R` — MAG completeness and contamination, contiguity, and MIMAG high-quality criteria;
 - `Fig 4.R` — catalogue subset relationships and ANI95 cluster structure, occupancy, and sharing among samples;
-- `Table 1.R` — sample and source-soil metadata table;
-- `Table 2.R` — Data files deposited in Zenodo for the bacterial MAG catalogue.
+- `Table 1.R` — sample and source-soil metadata table; and
+- `Table 2.R` — data files deposited in Zenodo for the bacterial MAG catalogue.
 
 `fig1_asset/` contains the workflow schematic used in Figure 1C. The `figure_and_table/` directory is used for generated outputs.
 
@@ -61,7 +61,7 @@ The released data products follow a numbered naming scheme:
 1 — Sequencing and assembly
 2 — Primary MAG catalogue
 3 — MIMAG quality assessment
-4 — ANI95 catalogue
+4 — ANI95 representative catalogue
 ```
 
 Examples include:
@@ -135,7 +135,7 @@ Some figures use `cairo_pdf()` for PDF export. A Cairo-enabled R installation is
 
 Figure 3 uses DejaVu Sans to support Unicode symbols used in figure labels. The script detects the installed font through the system `fc-match` command rather than using a user-specific font path.
 
-## Reproducing the figures and table
+## Reproducing the figures and tables
 
 Run each script from the repository root after downloading the corresponding Zenodo input files.
 
@@ -147,11 +147,12 @@ source("Fig 2.R")
 source("Fig 3.R")
 source("Fig 4.R")
 source("Table 1.R")
+source("Table 2.R")
 ```
 
-The scripts generate the manuscript figures and table from the released data products. Output files are written to `figure_and_table/`.
+The scripts generate the manuscript figures and tables from the released data products. Output files are written to `figure_and_table/`.
 
-The current manuscript figure organization is:
+The current manuscript organization is:
 
 ```text
 Figure 1 — Sampling design and genome-resolved metagenomic workflow
@@ -159,11 +160,12 @@ Figure 2 — Sequencing, assembly, and primary MAG recovery
 Figure 3 — MAG quality and genome characteristics
 Figure 4 — ANI95 catalogue structure and relationships
 Table 1  — Sample and source-soil metadata
+Table 2  — Data files deposited in Zenodo
 ```
 
 ## Scope of this repository
 
-This repository is intended to document and reproduce the analyses used to generate the figures and table in the Data Descriptor.
+This repository is intended to document and reproduce the analyses used to generate Figures 1–4 and Tables 1–2 in the Data Descriptor.
 
 It does **not** provide a replacement implementation of the upstream bioinformatics software used to reconstruct and characterize the MAG catalogue. Genome assembly, binning, quality assessment, taxonomic classification, rRNA/tRNA assessment, and ANI95 clustering were performed with publicly available software, with software versions and key parameters reported in the associated manuscript.
 
@@ -183,7 +185,7 @@ If you use the MAG catalogue or derived data products, please cite the Zenodo da
 
 For the deposited dataset:
 
-> Coastal Soil Cucumber Rhizosphere MAG Catalog (v1.0.0). Zenodo. https://doi.org/10.5281/zenodo.22077545
+> Cho, G. *Cucumber rhizosphere bacterial MAG catalogue from coastal plant-habitat soil amendments*. Zenodo (2026). https://doi.org/10.5281/zenodo.22077545
 
 The final article citation will be added here after publication.
 
