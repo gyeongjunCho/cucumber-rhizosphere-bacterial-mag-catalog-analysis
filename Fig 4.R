@@ -568,7 +568,7 @@ fig4_bottom <- ggarrange(
   widths = c(1.2, 1),
   labels = c("b", "c"),
   font.label = list(
-    size = 13,
+    size = 18,
     face = "bold"
   )
 )
@@ -580,7 +580,7 @@ fig4 <- ggarrange(
   heights = c(1.3, 1),
   labels = c("a", ""),
   font.label = list(
-    size = 13,
+    size = 18,
     face = "bold"
   )
 )

@@ -254,7 +254,8 @@ p2b <- ggplot(
   scale_x_continuous(
     expand = expansion(
       mult = c(0, 0.20)
-    )
+    ),
+    limits = c(0, 3200)
   ) +
 
   labs(
@@ -516,11 +517,11 @@ p2a_gg <- ggpubr::as_ggplot(
 fig2_left <- ggarrange(
   p2b,
   p2c,
-  n2ol = 1,
+  ncol = 1,
   nrow = 2,
   labels = c("b", "c"),
   font.label = list(
-    size = 13,
+    size = 20,
     face = "bold"
   ),
   align = "hv"
@@ -531,10 +532,10 @@ fig2_bottom <- ggarrange(
   fig2_left,
   p2d,
   ncol = 2,
-  widths = c(1, 1),
+  widths = c(1, 1.1),
   labels = c("", "d"),
   font.label = list(
-    size = 13,
+    size = 20,
     face = "bold"
   )
 )
@@ -547,7 +548,7 @@ fig2 <- ggarrange(
   nrow = 2,
   labels = c("a", ""),
   font.label = list(
-    size = 13,
+    size = 20,
     face = "bold"
   ),
   heights = c(1, 1.25)
@@ -563,7 +564,7 @@ fig2
 ggsave(
   filename = "figure_and_table/Figure2.pdf",
   plot = fig2,
-  width = 11.5,
+  width = 12,
   height = 10,
   units = "in",
   device = cairo_pdf

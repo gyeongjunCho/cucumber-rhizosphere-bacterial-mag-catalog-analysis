@@ -61,7 +61,7 @@ Example:
   MAG_ROOT=path/to/8-summary \
   MAG_METADATA=path/to/2-02_mag_metadata.tsv \
   OUT_ROOT=path/to/ANI95_output \
-  bash run_drep_MAGs_ANI95_catalogue.sh
+  bash build_ani95_catalogue_with_dRep.sh
 EOF
     exit 1
 fi
@@ -80,7 +80,7 @@ log "[INFO] dRep QC filter= completeness >= $MIN_COMP ; contamination <= $MAX_CO
 
 # ----------------------------------------------------------------------
 # Collect the 6,505 primary MAG nucleotide FASTA files directly from
-# 8-summary/<sample>/MAGs/*.fa and create stable dRep input names.
+# 8-summary/<sample>/MAGs/*.fa while preserving canonical primary MAG IDs.
 # ----------------------------------------------------------------------
 
 MAP_TSV="$SUMMARY_DIR/input_MAG_map.tsv"
@@ -102,7 +102,15 @@ for sample_dir in "$MAG_ROOT"/*; do
         [[ -f "$fa" ]] || continue
 
         base="$(basename "$fa" .fa)"
-        mag_id="${sample_id}__${base}"
+
+        # Primary MAG FASTA basenames already contain the sample prefix
+        # (for example, CW1_complete.105). Preserve that canonical MAG ID
+        # instead of prepending "${sample_id}__" a second time.
+        mag_id="$base"
+
+        [[ "$mag_id" == "${sample_id}_"* ]] || \
+            die "Unexpected MAG basename for sample ${sample_id}: ${base}"
+
         target="$GENOME_DIR/${mag_id}.fna"
 
         src="$(readlink -f "$fa")"
@@ -138,7 +146,17 @@ list_count="$(wc -l < "$DREP_GENOME_LIST")"
 dup_count="$(tail -n +2 "$MAP_TSV" | cut -f1 | sort | uniq -d | wc -l)"
 (( dup_count == 0 )) || die "Duplicate MAG_IDs detected."
 
+# Fail early if any legacy duplicated prefix such as CW1__CW1_* is present.
+legacy_prefix_count="$(
+    tail -n +2 "$MAP_TSV" |
+    cut -f1 |
+    awk -F'__' 'NF > 1 && $2 ~ ("^" $1 "_") {n++} END {print n+0}'
+)"
+(( legacy_prefix_count == 0 )) || \
+    die "Legacy duplicated sample prefixes detected: $legacy_prefix_count"
+
 log "[INFO] Genome path validation passed: $list_count/$EXPECTED_MAGS valid FASTAs"
+log "[INFO] Canonical MAG IDs preserved without duplicated sample prefixes"
 
 # ----------------------------------------------------------------------
 # Build dRep --genomeInfo from CheckM2 completeness and contamination
@@ -176,26 +194,34 @@ for x in meta:
         raise SystemExit(f'Duplicate mag_id: {x["mag_id"]}')
     by_id[x["mag_id"]] = x
 
-by_base, dup = {}, set()
-for mid, x in by_id.items():
-    base = mid.split("__", 1)[-1]
-    if base in by_base:
-        dup.add(base)
-    else:
-        by_base[base] = x
-
-for base in dup:
-    by_base.pop(base, None)
-
 rows, unmatched = [], []
 
 with map_tsv.open(newline="") as f:
-    for x in csv.DictReader(f, delimiter="\t"):
-        hit = by_id.get(x["MAG_ID"]) or by_id.get(x["base"]) or by_base.get(x["base"])
+    map_rows = list(csv.DictReader(f, delimiter="\t"))
 
-        if hit is None:
-            unmatched.append(x)
-            continue
+map_ids = {x["MAG_ID"] for x in map_rows}
+meta_ids = set(by_id)
+
+missing_in_metadata = sorted(map_ids - meta_ids)
+missing_in_fasta = sorted(meta_ids - map_ids)
+
+if missing_in_metadata or missing_in_fasta:
+    with unmatched_tsv.open("w", newline="") as f:
+        w = csv.writer(f, delimiter="\t")
+        w.writerow(["category", "mag_id"])
+        for mag_id in missing_in_metadata:
+            w.writerow(["FASTA_not_in_metadata", mag_id])
+        for mag_id in missing_in_fasta:
+            w.writerow(["metadata_not_in_FASTA", mag_id])
+
+    raise SystemExit(
+        "Canonical MAG-ID mismatch between FASTA inputs and metadata: "
+        f"{len(missing_in_metadata)} FASTA-only, "
+        f"{len(missing_in_fasta)} metadata-only; see {unmatched_tsv}"
+    )
+
+for x in map_rows:
+        hit = by_id[x["MAG_ID"]]
 
         comp = float(hit["completeness"])
         con = float(hit["contamination"])
@@ -210,13 +236,6 @@ with map_tsv.open(newline="") as f:
             "MAG_ID": x["MAG_ID"],
             "metadata_mag_id": hit["mag_id"],
         })
-
-if unmatched:
-    with unmatched_tsv.open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=unmatched[0].keys(), delimiter="\t")
-        w.writeheader()
-        w.writerows(unmatched)
-    raise SystemExit(f"{len(unmatched)} FASTAs unmatched; see {unmatched_tsv}")
 
 if len(rows) != len(meta):
     raise SystemExit(
@@ -469,28 +488,17 @@ with MAG_METADATA.open(newline="") as f:
     meta_rows = list(r)
 
 by_id = {x["mag_id"]: x for x in meta_rows}
-by_base = {}
-duplicate_bases = set()
 
-for x in meta_rows:
-    base = x["mag_id"].split("__", 1)[-1]
-
-    if base in by_base:
-        duplicate_bases.add(base)
-    else:
-        by_base[base] = x
-
-for base in duplicate_bases:
-    by_base.pop(base, None)
+if len(by_id) != len(meta_rows):
+    raise SystemExit("Duplicate mag_id values found in MAG metadata")
 
 def metadata_for(mag_id):
-    base = mag_map[mag_id]["base"]
-    return (
-        by_id.get(mag_id)
-        or by_id.get(base)
-        or by_base.get(base)
-        or {}
-    )
+    try:
+        return by_id[mag_id]
+    except KeyError:
+        raise SystemExit(
+            f"Representative MAG ID not found in metadata: {mag_id}"
+        )
 
 repmeta = SUMMARY_DIR / "ani95_representative_metadata.tsv"
 prefix_fields = [

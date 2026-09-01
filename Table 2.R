@@ -64,11 +64,7 @@ table2 <- tribble(
 
   "4. ANI95 catalogue",
   "4-05_ani95_sample_cluster_counts.tsv",
-  "Number of distinct ANI95 clusters detected in each composite rhizosphere sample",
-
-  "4. ANI95 catalogue",
-  "4-06_representative_MAGs_ANI95.tar.gz",
-  "FASTA files for the 4,032 ANI95 representative MAGs"
+  "Number of distinct ANI95 clusters detected in each composite rhizosphere sample"
 )
 
 # -------------------------------------------------------------------------

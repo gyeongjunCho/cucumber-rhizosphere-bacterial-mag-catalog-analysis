@@ -194,7 +194,7 @@ fig3 <- ggarrange(
   nrow = 2,
   labels = c("a", "b", "c", "d"),
   font.label = list(
-    size = 13,
+    size = 18,
     face = "bold"
   ),
   align = "hv"
