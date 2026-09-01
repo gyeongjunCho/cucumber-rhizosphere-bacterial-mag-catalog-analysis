@@ -1,14 +1,36 @@
+# =========================================================================
+# Figure 2. ANI95 catalogue structure and relationships
+# =========================================================================
+
 library(dplyr)
+library(tidyr)
 library(ggplot2)
-library(ggrepel)
+library(ComplexUpset)
 library(ggpubr)
+library(grid)
+
 
 # -------------------------------------------------------------------------
-# Input
+# Input and shared settings
 # -------------------------------------------------------------------------
 
-seqsum <- read.delim(
-  "1-01_sequencing_assembly_summary.tsv",
+mag <- read.delim(
+  "2-02_mag_metadata.tsv",
+  stringsAsFactors = FALSE
+)
+
+ani95_rep <- read.delim(
+  "4-03_ani95_representative_metadata.tsv",
+  stringsAsFactors = FALSE
+)
+
+ani95_cluster <- read.delim(
+  "4-02_ani95_cluster_summary.tsv",
+  stringsAsFactors = FALSE
+)
+
+ani95_membership <- read.delim(
+  "4-01_ani95_cluster_membership.tsv",
   stringsAsFactors = FALSE
 )
 
@@ -17,182 +39,486 @@ sample_order <- c(
   "NH2", "NH3", "PH1", "PH2", "US1"
 )
 
-seqsum <- seqsum %>%
-  mutate(
-    sample_id = factor(sample_id, levels = sample_order),
-    assembly_contig_N50_kb = assembly_contig_N50_bp / 1000
-  )
-
+# Catalogue consistency checks
 stopifnot(
-  nrow(seqsum) == 11,
-  sum(seqsum$primary_MAG_count) == 6505
+  nrow(mag) == 6505,
+  nrow(ani95_rep) == 4032,
+  nrow(ani95_cluster) == 4032,
+
+  !anyDuplicated(mag$mag_id),
+  !anyDuplicated(ani95_rep$mag_id),
+  !anyDuplicated(ani95_cluster$ani95_cluster_id),
+
+  all(ani95_rep$mag_id %in% mag$mag_id),
+  sum(ani95_cluster$cluster_size) == 6505
 )
 
-fig2_fill <- "grey55"
 
-theme_fig2 <- theme_classic(base_size = 10) +
+# =========================================================================
+# Figure 2A. MAG catalogue subset relationships
+# =========================================================================
+
+# Define catalogue subsets
+fig2a_dat <- mag %>%
+  mutate(
+    Primary = TRUE,
+
+    Operational_HQ =
+      completeness > 90 &
+      contamination < 10,
+
+    MIMAG_HQ =
+      mimag_high_quality == 1,
+
+    GenBank =
+      !is.na(ncbi_genome_accession) &
+      trimws(ncbi_genome_accession) != "",
+
+    ANI95_rep =
+      mag_id %in% ani95_rep$mag_id
+  )
+
+# Confirm expected set sizes
+set_summary <- fig2a_dat %>%
+  summarise(
+    Primary = sum(Primary),
+    Operational_HQ = sum(Operational_HQ),
+    MIMAG_HQ = sum(MIMAG_HQ),
+    GenBank = sum(GenBank),
+    ANI95_rep = sum(ANI95_rep)
+  )
+
+print(set_summary)
+
+stopifnot(
+  set_summary$Primary == 6505,
+  set_summary$Operational_HQ == 4049,
+  set_summary$MIMAG_HQ == 3659,
+  set_summary$GenBank == 4031,
+  set_summary$ANI95_rep == 4032
+)
+
+# UpSet plot
+p2a <- upset(
+  fig2a_dat,
+
+  intersect = c(
+    "Primary",
+    "Operational_HQ",
+    "MIMAG_HQ",
+    "GenBank",
+    "ANI95_rep"
+  ),
+
+  wrap = TRUE,
+
+  labeller = function(x) {
+    dplyr::recode(
+      x,
+      Primary = "Primary catalogue",
+      Operational_HQ = "Operational HQ",
+      MIMAG_HQ = "MIMAG HQ",
+      GenBank = "GenBank accessioned",
+      ANI95_rep = "ANI95 representative"
+    )
+  },
+
+  sort_intersections_by = c(
+    "degree",
+    "cardinality"
+  ),
+  sort_intersections = "descending",
+
+  base_annotations = list(
+    "Intersection size" =
+      intersection_size(
+        counts = TRUE,
+        text = list(size = 3.5)
+      )
+  ),
+
+  set_sizes = (
+    upset_set_size(
+      geom = geom_bar(width = 0.65),
+      position = "right"
+    ) +
+      geom_text(
+        aes(label = after_stat(count)),
+        stat = "count",
+        color = "white",
+        hjust = 1.15,
+        size = 3.5
+      ) +
+      labs(
+        x = NULL,
+        y = "Set size"
+      )
+  ),
+
+  width_ratio = 0.25,
+  height_ratio = 0.55,
+  name = "Catalogue subset"
+) +
+  ggtitle(
+    "MAG catalogue subset relationships"
+  ) +
   theme(
-    axis.title = element_text(size = 10),
-    axis.text = element_text(size = 9),
-    axis.text.x = element_text(angle = 45, hjust = 1),
+    text = element_text(size = 10),
     plot.title = element_text(
-      size = 11,
       face = "bold",
+      size = 12,
+      hjust=0.5
+    )
+  )
+
+p2a
+
+
+# =========================================================================
+# Figure 2B. ANI95 cluster-size composition
+# =========================================================================
+
+# Catalogue-level ANI95 cluster statistics
+cluster_stats <- ani95_cluster %>%
+  summarise(
+    n_clusters = n(),
+    n_primary_MAGs = sum(cluster_size),
+    stand_alone_clusters = sum(cluster_size == 1),
+    stand_alone_percent = 100 * mean(cluster_size == 1),
+    multi_member_clusters = sum(cluster_size > 1),
+    median_cluster_size = median(cluster_size),
+    mean_cluster_size = mean(cluster_size),
+    max_cluster_size = max(cluster_size)
+  )
+
+print(cluster_stats)
+
+# Group clusters according to the number of member MAGs
+cluster_size_class <- ani95_cluster %>%
+  mutate(
+    size_class = case_when(
+      cluster_size == 1  ~ "Stand-alone",
+      cluster_size == 2  ~ "2-member",
+      cluster_size <= 5  ~ "3–5-member",
+      cluster_size <= 10 ~ "6–10-member",
+      TRUE               ~ ">10-member"
+    ),
+
+    size_class = factor(
+      size_class,
+      levels = c(
+        "Stand-alone",
+        "2-member",
+        "3–5-member",
+        "6–10-member",
+        ">10-member"
+      )
+    )
+  ) %>%
+  count(
+    size_class,
+    name = "n_clusters"
+  ) %>%
+  mutate(
+    percent =
+      100 * n_clusters / sum(n_clusters),
+
+    label =
+      sprintf(
+        "%s (%.1f%%)",
+        n_clusters,
+        percent
+      )
+  )
+
+print(cluster_size_class)
+
+p2b <- ggplot(
+  cluster_size_class,
+  aes(
+    x = n_clusters,
+    y = size_class
+  )
+) +
+
+  geom_col(
+    width = 0.7
+  ) +
+
+  geom_text(
+    aes(label = label),
+    hjust = -0.1,
+    size = 3.5
+  ) +
+
+  scale_x_continuous(
+    expand = expansion(
+      mult = c(0, 0.20)
+    )
+  ) +
+
+  labs(
+    x = "Number of ANI95 clusters",
+    y = "MAGs per ANI95 cluster",
+    title = "ANI95 cluster-size composition"
+  ) +
+
+  theme_classic(
+    base_size = 10
+  ) +
+
+  theme(
+    plot.title = element_text(
+      face = "bold",
+      size = 12,
       hjust = 0.5
     )
   )
 
-# =========================================================================
-# Figure 2A. HiFi sequencing yield
-# =========================================================================
+p2b
 
-p2a <- ggplot(
-  seqsum,
-  aes(x = sample_id, y = hifi_yield_Gb)
-) +
-  geom_col(
-    width = 0.72,
-    fill = fig2_fill
-  ) +
-  geom_text(
-    aes(label = sprintf("%.1f", hifi_yield_Gb)),
-    vjust = -0.35,
-    size = 3
-  ) +
-  scale_y_continuous(
-    expand = expansion(mult = c(0, 0.10))
-  ) +
-  labs(
-    x = NULL,
-    y = "HiFi sequencing yield (Gb)",
-    title = "HiFi sequencing yield"
-  ) +
-  theme_fig2
 
 # =========================================================================
-# Figure 2B. Assembly size and contiguity
+# Figure 2C. Sample occupancy of ANI95 clusters
 # =========================================================================
-seqsum <- seqsum %>%
+
+# Number of ANI95 clusters observed across 1–11 samples
+cluster_occupancy <- ani95_cluster %>%
+  count(
+    n_samples,
+    name = "n_clusters"
+  ) %>%
+  complete(
+    n_samples = 1:11,
+    fill = list(
+      n_clusters = 0
+    )
+  ) %>%
+  arrange(n_samples) %>%
   mutate(
-    label_b = paste0(
-      "bold('", as.character(sample_id), "')~",
-      "'(",
-      format(
-        assembly_contig_count,
-        big.mark = ",",
-        scientific = FALSE,
-        trim = TRUE
-      ),
-      " contigs)'"
+    percent =
+      100 * n_clusters / sum(n_clusters),
+
+    label =
+      sprintf(
+        "%s\n(%.1f%%)",
+        n_clusters,
+        percent
+      )
+  )
+
+print(cluster_occupancy)
+
+stopifnot(
+  sum(cluster_occupancy$n_clusters) == 4032,
+  all(cluster_occupancy$n_samples %in% 1:11)
+)
+
+p2c <- ggplot(
+  cluster_occupancy,
+  aes(
+    x = n_samples,
+    y = n_clusters
+  )
+) +
+
+  geom_col(
+    width = 0.7
+  ) +
+
+  geom_text(
+    aes(label = label),
+    vjust = -0.25,
+    size = 3.2,
+    lineheight = 0.9
+  ) +
+
+  scale_x_continuous(
+    breaks = 1:11
+  ) +
+
+  scale_y_continuous(
+    limits = c(0,3500),
+    expand = expansion(
+      mult = c(0, 0.12)
+    )
+  ) +
+
+  labs(
+    x = "Number of samples per ANI95 cluster",
+    y = "Number of ANI95 clusters",
+    title = "Sample occupancy of ANI95 clusters"
+  ) +
+
+  theme_classic(
+    base_size = 10
+  ) +
+
+  theme(
+    plot.title = element_text(
+      face = "bold",
+      size = 12,
+      hjust = 0.5
     )
   )
 
-p2b <- ggplot(
-  seqsum,
-  aes(
-    x = assembly_size_Gb,
-    y = assembly_contig_N50_kb
-  )
-) +
-  geom_point(
-    size = 2.8,
-    shape = 21,
-    fill = fig2_fill,
-    colour = "black"
-  ) +
-  geom_text_repel(
-    aes(label = label_b),
-    parse = TRUE,
-    size = 3,
-    lineheight = 0.9,
-    box.padding = 0.4,
-    point.padding = 0.25,
-    min.segment.length = 0,
-    max.overlaps = Inf
-  ) +
-  labs(
-    x = "Total assembly size (Gb)",
-    y = "Assembly contig N50 (kb)",
-    title = "Metagenome assembly"
-  ) +
-  theme_fig2 +
-  theme(
-    axis.text.x = element_text(angle = 0, hjust = 0.5)
+p2c
+
+
+# =========================================================================
+# Figure 2D. ANI95 cluster sharing among samples
+# =========================================================================
+
+# One record per ANI95 cluster and sample
+cluster_presence <- ani95_membership %>%
+  distinct(
+    ani95_cluster_id,
+    sample_id
   )
 
-# =========================================================================
-# Figure 2C. Primary MAG count
-# =========================================================================
+# Pairwise cluster sharing.
+# Diagonal values represent the number of distinct ANI95 clusters
+# recovered from each individual sample.
+pairwise_sharing <- cluster_presence %>%
+  inner_join(
+    cluster_presence,
+    by = "ani95_cluster_id",
+    suffix = c("_x", "_y")
+  ) %>%
 
-p2c <- ggplot(
-  seqsum,
-  aes(x = sample_id, y = primary_MAG_count)
-) +
-  geom_col(
-    width = 0.72,
-    fill = fig2_fill
-  ) +
-  geom_text(
-    aes(label = primary_MAG_count),
-    vjust = -0.35,
-    size = 3
-  ) +
-  scale_y_continuous(
-    expand = expansion(mult = c(0, 0.10))
-  ) +
-  labs(
-    x = NULL,
-    y = "Number of primary MAGs",
-    title = "Primary MAG recovery"
-  ) +
-  theme_fig2
+  count(
+    sample_id_x,
+    sample_id_y,
+    name = "n_shared"
+  ) %>%
 
-# =========================================================================
-# Figure 2D. MAG-associated HiFi bases
-# =========================================================================
+  complete(
+    sample_id_x = sample_order,
+    sample_id_y = sample_order,
+    fill = list(
+      n_shared = 0
+    )
+  ) %>%
+
+  mutate(
+    x_id = match(
+      sample_id_x,
+      sample_order
+    ),
+    y_id = match(
+      sample_id_y,
+      sample_order
+    )
+  ) %>%
+
+  # Retain one half of the symmetric matrix
+  filter(
+    y_id >= x_id
+  ) %>%
+
+  mutate(
+    sample_id_x = factor(
+      sample_id_x,
+      levels = sample_order
+    ),
+
+    sample_id_y = factor(
+      sample_id_y,
+      levels = rev(sample_order)
+    )
+  )
+
+stopifnot(
+  all(
+    sample_order %in%
+      cluster_presence$sample_id
+  ),
+  n_distinct(
+    cluster_presence$ani95_cluster_id
+  ) == 4032
+)
 
 p2d <- ggplot(
-  seqsum,
+  pairwise_sharing,
   aes(
-    x = sample_id,
-    y = MAG_associated_HiFi_bases_percent
+    x = sample_id_x,
+    y = sample_id_y,
+    fill = n_shared
   )
 ) +
-  geom_col(
-    width = 0.72,
-    fill = fig2_fill
+
+  geom_tile(
+    linewidth = 0.4,
+    color = "white"
   ) +
+
   geom_text(
-    aes(
-      label = sprintf(
-        "%.1f",
-        MAG_associated_HiFi_bases_percent
-      )
-    ),
-    vjust = -0.35,
+    aes(label = n_shared),
     size = 3
   ) +
-  scale_y_continuous(
-    limits = c(0, NA),
-    expand = expansion(mult = c(0, 0.10))
+
+  scale_fill_viridis_c(
+    option = "C",
+    direction = -1,
+    name = "Shared ANI95\nclusters"
   ) +
+
   labs(
     x = NULL,
-    y = "MAG-associated HiFi bases (%)",
-    title = "MAG-associated HiFi signal"
+    y = NULL,
+    title = "ANI95 cluster sharing among samples"
   ) +
-  theme_fig2
+
+  coord_fixed() +
+
+  theme_classic(
+    base_size = 10
+  ) +
+
+  theme(
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    ),
+
+    plot.title = element_text(
+      face = "bold",
+      size = 12,
+      hjust = 0.5
+    ),
+
+    legend.title = element_text(
+      size = 9
+    )
+  )
+
+p2d
+
 
 # =========================================================================
 # Assemble Figure 2
 # =========================================================================
 
-fig2 <- ggarrange(
-  p2a, p2b,
-  p2c, p2d,
-  ncol = 2,
+# ComplexUpset returns a wrapped patchwork object.
+# Capture it as a grob before combining with ggpubr.
+p2a_grob <- grid::grid.grabExpr(
+  print(p2a)
+)
+
+p2a_gg <- ggpubr::as_ggplot(
+  p2a_grob
+)
+
+# Lower-left panels
+fig2_left <- ggarrange(
+  p2b,
+  p2c,
+  n2ol = 1,
   nrow = 2,
-  labels = c("a", "b", "c", "d"),
+  labels = c("b", "c"),
   font.label = list(
     size = 13,
     face = "bold"
@@ -200,7 +526,35 @@ fig2 <- ggarrange(
   align = "hv"
 )
 
+# Lower section
+fig2_bottom <- ggarrange(
+  fig2_left,
+  p2d,
+  ncol = 2,
+  widths = c(1, 1),
+  labels = c("", "d"),
+  font.label = list(
+    size = 13,
+    face = "bold"
+  )
+)
+
+# Final Figure 2
+fig2 <- ggarrange(
+  p2a_gg,
+  fig2_bottom,
+  ncol = 1,
+  nrow = 2,
+  labels = c("a", ""),
+  font.label = list(
+    size = 13,
+    face = "bold"
+  ),
+  heights = c(1, 1.25)
+)
+
 fig2
+
 
 # =========================================================================
 # Export Figure 2
@@ -209,8 +563,8 @@ fig2
 ggsave(
   filename = "figure_and_table/Figure2.pdf",
   plot = fig2,
-  width = 8,
-  height = 6,
+  width = 11.5,
+  height = 10,
   units = "in",
   device = cairo_pdf
 )

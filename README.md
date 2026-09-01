@@ -2,7 +2,7 @@
 
 This repository contains the analysis and data-processing scripts used to reproduce Figures 1–4, Tables 1–2, and selected derived data products presented in the associated *Scientific Data* Data Descriptor describing a genome-resolved bacterial metagenomic catalogue from cucumber rhizospheres amended with coastal plant-habitat soils.
 
-Genome assembly, MAG recovery, genome-quality assessment, and taxonomic classification were performed using publicly available bioinformatics software as described in the manuscript. This repository additionally provides scripts for selected downstream catalogue-processing steps, including construction of the ANI95 representative catalogue and reconstruction of the released primary-MAG metadata table.
+Genome assembly, MAG recovery, genome-quality assessment, and taxonomic classification were performed using publicly available bioinformatics software as described in the manuscript. This repository additionally provides scripts for selected downstream data-processing steps used to build released sequencing/assembly summaries, MAG-associated coverage QC, the primary-MAG metadata table, MIMAG quality tables, and the ANI95 representative catalogue.
 
 ## Data availability
 
@@ -37,7 +37,8 @@ cucumber-rhizosphere-bacterial-mag-catalog-analysis/
 ├── data_processing/
 │   ├── build_ani95_catalogue_with_dRep.sh
 │   ├── build_mag_metadata_with_jgi_depth.py
-│   └── build_mimag_quality_tables_with_Barrnap_tRNAscan-SE.sh
+│   ├── build_mimag_quality_tables_with_Barrnap_tRNAscan-SE.sh
+│   └── build_sequencing_assembly_mag_coverage.sh
 └── fig1_asset/
     └── Fig1C_workflow.png
 ```
@@ -45,17 +46,18 @@ cucumber-rhizosphere-bacterial-mag-catalog-analysis/
 The R scripts correspond directly to Figures 1–4 and Tables 1–2 in the associated Data Descriptor:
 
 - `Fig 1.R` — coastal source-soil sampling sites, experimental design, and genome-resolved metagenomic workflow;
-- `Fig 2.R` — HiFi sequencing yield, assembly characteristics, primary MAG recovery, and MAG-associated HiFi bases;
-- `Fig 3.R` — MAG completeness and contamination, contiguity, and MIMAG high-quality criteria;
-- `Fig 4.R` — catalogue subset relationships and ANI95 cluster structure, occupancy, and sharing among samples;
+- `Fig 2.R` — catalogue subset relationships and ANI95 cluster structure, occupancy, and sharing among samples;
+- `Fig 3.R` — HiFi sequencing yield, assembly characteristics, primary MAG recovery, and MAG-associated HiFi bases;
+- `Fig 4.R` — MAG completeness and contamination, contiguity, and MIMAG high-quality criteria;
 - `Table 1.R` — sample and source-soil metadata table; and
 - `Table 2.R` — data files deposited in Zenodo for the bacterial MAG catalogue.
 
 The `data_processing/` directory contains scripts used to reconstruct selected released data products:
 
 - `build_ani95_catalogue_with_dRep.sh` — constructs the ANI95 catalogue from the 6,505 primary MAG nucleotide FASTA files using dRep and generates stable ANI95 identifiers, cluster membership tables, representative metadata, sample-presence tables, and representative MAG FASTA links;
-- `build_mag_metadata_with_jgi_depth.py` — reconstructs the released `2-02_mag_metadata.tsv` table from completed `pb-metagenomics-tools/HiFi-MAG-Pipeline` outputs and calculates MAG average depth as a contig-length-weighted mean of JGI `totalAvgDepth` values; and
-- `build_mimag_quality_tables_with_Barrnap_tRNAscan-SE.sh` — runs Barrnap and tRNAscan-SE on the 6,505 primary MAGs, combines the RNA annotations with CheckM2 completeness and contamination values from the released `2-02_mag_metadata.tsv` table, applies the MIMAG high-quality criteria used in the study, and generates the released MIMAG quality, summary, QC, and per-sample tables.
+- `build_mag_metadata_with_jgi_depth.py` — reconstructs the released `2-02_mag_metadata.tsv` table from completed `pb-metagenomics-tools/HiFi-MAG-Pipeline` outputs and NCBI genome accession tables, including MAG circularity, contig-length-weighted average depth, GTDB taxonomy, and GenBank accession;
+- `build_mimag_quality_tables_with_Barrnap_tRNAscan-SE.sh` — runs Barrnap and tRNAscan-SE on the 6,505 primary MAGs, combines the RNA annotations with CheckM2 completeness and contamination values from the released `2-02_mag_metadata.tsv` table, applies the MIMAG high-quality criteria used in the study, and generates the released MIMAG quality, summary, QC, and per-sample tables; and
+- `build_sequencing_assembly_mag_coverage.sh` — reconstructs the released `1-01_sequencing_assembly_summary.tsv` and `1-02_mag_associated_coverage_qc.tsv` tables from combined sample-level HiFi reads, metaMDBG assemblies, HiFi-MAG-Pipeline MAG summaries, and JGI depth tables, including the depth-weighted MAG-associated HiFi signal used in the Data Descriptor.
 
 `fig1_asset/` contains the workflow schematic used in Figure 1C. The `figure_and_table/` directory is used for generated manuscript outputs and is not tracked in this repository.
 
@@ -95,6 +97,53 @@ Examples include:
 4-05_ani95_sample_cluster_counts.tsv
 ```
 
+### Sequencing, assembly, and MAG-associated coverage processing
+
+`data_processing/build_sequencing_assembly_mag_coverage.sh` reconstructs the released `1-01_sequencing_assembly_summary.tsv` and `1-02_mag_associated_coverage_qc.tsv` tables.
+
+Each composite rhizosphere sample was sequenced using two PacBio Revio SMRT Cells and is represented by two SRR accessions in SRA. When starting from the deposited runs, download the two FASTQ files for a sample, convert each run to FASTA with seqtk v1.3-r106, and concatenate the two run-level FASTA files into one sample-level FASTA before running the script. This is simple concatenation of the two HiFi read sets, not paired-end read merging.
+
+For example:
+
+```bash
+fasterq-dump SRR_RUN1
+fasterq-dump SRR_RUN2
+
+seqtk seq -A SRR_RUN1.fastq > SRR_RUN1.fasta
+seqtk seq -A SRR_RUN2.fastq > SRR_RUN2.fasta
+
+cat SRR_RUN1.fasta SRR_RUN2.fasta > Con.fasta
+```
+
+The script expects sample-level read FASTA files and the corresponding metaMDBG assemblies in `INPUT_DIR`, together with completed HiFi-MAG-Pipeline outputs:
+
+```text
+path/to/HiFi-MAG-Pipeline/
+├── 2-bam/
+│   ├── <sample>.JGI.depth.txt
+│   └── ...
+└── 8-summary/
+    ├── <sample>/
+    │   └── <sample>.HiFi_MAG.summary.txt
+    └── ...
+```
+
+MAG-associated HiFi bases are calculated from MAG-assigned contigs as:
+
+```text
+100 × sum(contigLen × totalAvgDepth) / raw HiFi total bases
+```
+
+This quantity is a depth-weighted sequencing signal associated with MAG contigs and should not be interpreted as a direct read-recruitment fraction.
+
+Example:
+
+```bash
+INPUT_DIR=./inputs \
+PIPELINE_ROOT=path/to/HiFi-MAG-Pipeline \
+bash data_processing/build_sequencing_assembly_mag_coverage.sh
+```
+
 ### ANI95 catalogue processing
 
 `data_processing/build_ani95_catalogue_with_dRep.sh` expects the primary MAG FASTA files in the final summary structure produced by `pb-metagenomics-tools/HiFi-MAG-Pipeline`:
@@ -121,9 +170,9 @@ bash data_processing/build_ani95_catalogue_with_dRep.sh
 
 ### Primary MAG metadata reconstruction
 
-`data_processing/build_mag_metadata_with_jgi_depth.py` is intended to be run on the completed output of `pb-metagenomics-tools/HiFi-MAG-Pipeline` after processing the study FASTA/FASTQ inputs.
+`data_processing/build_mag_metadata_with_jgi_depth.py` reconstructs the released `2-02_mag_metadata.tsv` table from completed `pb-metagenomics-tools/HiFi-MAG-Pipeline` outputs and NCBI genome accession tables.
 
-The relevant upstream files are:
+The relevant pipeline files are:
 
 ```text
 path/to/HiFi-MAG-Pipeline/
@@ -136,19 +185,20 @@ path/to/HiFi-MAG-Pipeline/
     └── ...
 ```
 
-The script reconstructs the released `2-02_mag_metadata.tsv` table. MAG average depth is calculated as:
+The sample-level `HiFi_MAG.summary.txt` files provide completeness, contamination, circularity, contig membership, genome size, GC content, and GTDB taxonomy. The JGI depth tables provide `contigLen` and `totalAvgDepth`, from which MAG average depth is calculated as:
 
 ```text
 sum(contigLen × totalAvgDepth) / sum(contigLen)
 ```
 
-where `contigLen` and `totalAvgDepth` are taken from the sample-specific JGI depth table for contigs assigned to each MAG.
+The script also reads NCBI `genome-info-*.tsv` files containing `sample_name` and `genome_acc` to add GenBank accessions to the final table. MAGs without an assigned accession are recorded as `NA`.
 
 Example:
 
 ```bash
 python3 data_processing/build_mag_metadata_with_jgi_depth.py \
     --pipeline-root path/to/HiFi-MAG-Pipeline \
+    --genome-info-dir path/to/ncbi_genome_info \
     --out 2-02_mag_metadata.tsv
 ```
 
@@ -233,7 +283,7 @@ install.packages(c(
 
 Some figures use `cairo_pdf()` for PDF export. A Cairo-enabled R installation is therefore recommended.
 
-Figure 3 uses DejaVu Sans to support Unicode symbols used in figure labels. The script detects the installed font through the system `fc-match` command rather than using a user-specific font path.
+Figure 4 uses DejaVu Sans to support Unicode symbols used in figure labels. The script detects the installed font through the system `fc-match` command rather than using a user-specific font path.
 
 ### Data-processing scripts
 
@@ -258,7 +308,17 @@ Python 3
 
 The script uses the CheckM2 completeness and contamination values provided in the released `2-02_mag_metadata.tsv` table and does not rerun CheckM2.
 
-`build_mag_metadata_with_jgi_depth.py` requires only Python 3 standard-library modules at execution time, together with completed `pb-metagenomics-tools/HiFi-MAG-Pipeline` outputs. The upstream pipeline outputs used by this script include results generated with `jgi_summarize_bam_contig_depths` from MetaBAT2, CheckM2, and GTDB-Tk.
+`build_mag_metadata_with_jgi_depth.py` requires only Python 3 standard-library modules at execution time, together with completed `pb-metagenomics-tools/HiFi-MAG-Pipeline` outputs and the NCBI `genome-info-*.tsv` accession tables. The upstream pipeline outputs used by this script include results generated with `jgi_summarize_bam_contig_depths` from MetaBAT2, CheckM2, and GTDB-Tk.
+
+`build_sequencing_assembly_mag_coverage.sh` requires:
+
+```text
+Bash
+SeqKit
+Python 3
+```
+
+When reconstructing sample-level HiFi FASTA files directly from SRA, SRA Toolkit and seqtk are additionally required. The released analysis used SeqKit v2.12.0 and seqtk v1.3-r106.
 
 Software versions and key parameters used for the study are reported in the associated Data Descriptor.
 
@@ -283,9 +343,9 @@ The current manuscript organization is:
 
 ```text
 Figure 1 — Sampling design and genome-resolved metagenomic workflow
-Figure 2 — Sequencing, assembly, and primary MAG recovery
-Figure 3 — MAG quality and genome characteristics
-Figure 4 — ANI95 catalogue structure and relationships
+Figure 2 — ANI95 catalogue structure and relationships
+Figure 3 — Sequencing, assembly, and primary MAG recovery
+Figure 4 — MAG quality and genome characteristics
 Table 1  — Sample and source-soil metadata
 Table 2  — Data files deposited in Zenodo
 ```
@@ -294,7 +354,7 @@ Table 2  — Data files deposited in Zenodo
 
 This repository supports reproducibility at two levels:
 
-1. reconstruction of selected released catalogue products, including primary-MAG metadata, MIMAG quality tables, and the ANI95 representative catalogue, through scripts in `data_processing/`; and
+1. reconstruction of selected released data products, including sequencing/assembly summaries, MAG-associated coverage QC, primary-MAG metadata, MIMAG quality tables, and the ANI95 representative catalogue, through scripts in `data_processing/`; and
 2. reproduction of Figures 1–4 and Tables 1–2 from the released Zenodo data products.
 
 The upstream genome assembly, binning, genome-quality assessment, and taxonomic-classification tools are publicly available software and are documented with versions and key parameters in the associated Data Descriptor.
@@ -317,7 +377,7 @@ The final article citation will be added here after publication.
 
 ## License
 
-The analysis and data-processing code in this repository, including the scripts in `data_processing/`, is released under the MIT License. External software invoked by these scripts (for example, dRep, fastANI, Mash, Barrnap, tRNAscan-SE, MetaBAT2, CheckM2, and GTDB-Tk) remains subject to its own respective license.
+The analysis and data-processing code in this repository, including the scripts in `data_processing/`, is released under the MIT License. External software used or invoked by these workflows (for example, dRep, fastANI, Mash, Barrnap, tRNAscan-SE, SeqKit, seqtk, SRA Toolkit, MetaBAT2, CheckM2, and GTDB-Tk) remains subject to its own respective license.
 
 The figure asset in `fig1_asset/` is licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0).
 
